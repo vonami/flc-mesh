@@ -28,6 +28,7 @@ public:
     int numInitStages() const;
     void initialize( int stage );
     void handleMessage( cMessage *message );
+    void finish();
 
 private:
 
@@ -40,6 +41,7 @@ private:
     uint m_selfIndex;
     uint m_hostsNumber;
     IPAddress m_currentDestination;
+    //uint m_currentIndex;
 
     bool m_enabled;
     uint m_burstLength;

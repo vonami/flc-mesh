@@ -34,6 +34,7 @@ public:
     std::vector<cMessage*> pull( const IPAddress &address );
     uint drop( const IPAddress &address );
     void push( cMessage *message );
+    int length() const;
 
 private:
 

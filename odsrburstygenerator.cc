@@ -35,6 +35,8 @@ void OdsrBurstyGenerator::initialize( int stage )
         m_burstCounter = m_burstLength;
         m_messageLength = par( "messageLength" );
         m_hostsNumber = par( "hostsNumber" );
+        m_sent = 0;
+        m_received = 0;
     }
 
     if ( stage == 3 ) {
@@ -72,11 +74,11 @@ void OdsrBurstyGenerator::handleMessage( cMessage *message )
         // schedule next burst
         m_burstCounter = m_burstLength;
         m_currentDestination = generateAddress();
-        scheduleAt( simTime() + exponential( 5.0 ), message );
+        scheduleAt( simTime() + exponential( 1.0 ), message );
     }
     else {
         // schedule next sending within burst
-        scheduleAt( simTime() + exponential( 1.0 ), message );
+        scheduleAt( simTime() + exponential( 0.1 ), message );
     }
 }
 
@@ -85,7 +87,7 @@ IPAddress OdsrBurstyGenerator::generateAddress() const
     ev << "My index: " << m_selfIndex << endl;
     uint index = 0;
     do {
-        index = uniform( 0, m_hostsNumber );
+        index = intuniform( 0, m_hostsNumber - 1 );
     } while ( index == m_selfIndex );
 
     char hostName[32];
@@ -117,4 +119,10 @@ void OdsrBurstyGenerator::sendToOdsr( cMessage *message, const IPAddress &destin
 
     m_sent++;
     send( message, "toOdsr" );
+}
+
+void OdsrBurstyGenerator::finish()
+{
+    recordScalar( "Sent", m_sent );
+    recordScalar( "Received", m_received );
 }

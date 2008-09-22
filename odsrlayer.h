@@ -72,6 +72,10 @@ private:
     OdsrPacketQueue *m_odsrPacketQueue;
     OdsrRoutingTable m_odsrRoutingTable;
     std::map<IPAddress, OdsrPendingReply > m_pendingReplies;
+
+    // statistics
+    cOutVector m_statQueueSize;
+    uint m_statIcmpErrors;
 };
 
 #endif // ODSRLAYER_H

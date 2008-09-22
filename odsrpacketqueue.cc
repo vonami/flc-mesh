@@ -82,3 +82,8 @@ void OdsrPacketQueue::push( cMessage *message )
     m_queue.insert( message );
     ev << "Enqueued the packet, count: " << m_queue.length() << endl;
 }
+
+int OdsrPacketQueue::length() const
+{
+    return m_queue.length();
+}

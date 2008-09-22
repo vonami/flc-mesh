@@ -18,6 +18,7 @@
 #include "odsrlayer.h"
 #include "crisproutingcontroller.h"
 
+#include <csimul.h>
 #include <IPAddressResolver.h>
 #include <IPv4InterfaceData.h>
 #include <IPControlInfo.h>
@@ -44,6 +45,10 @@ void OdsrLayer::initialize( int stage )
         m_queueTimeout = par( "queueTimeout" );
         ev << "Queue timeout: " << m_queueTimeout << endl;
         m_odsrRoutingController = new CrispRoutingController();
+
+        // statistics
+        m_statQueueSize.setName( "QueueSize" );
+        m_statIcmpErrors = 0;
     }
 
     if ( stage == 2 ) {
@@ -108,6 +113,7 @@ void OdsrLayer::initialize( int stage )
 
 void OdsrLayer::finish()
 {
+    recordScalar( "ICMP errors", m_statIcmpErrors );
 }
 
 void OdsrLayer::handleMessage( cMessage* message )
@@ -122,8 +128,10 @@ void OdsrLayer::handleMessage( cMessage* message )
     const char *gate = message->arrivalGate()->name();
     ev << "Got message from gate: " << gate << endl;
 
-    if ( strncmp( gate, "fromGenerator", 7 ) == 0 )
+    if ( strncmp( gate, "fromGenerator", 7 ) == 0 ) {
         handleOutgoingDataMessage( message );
+        m_statQueueSize.record( m_odsrPacketQueue->length() );
+    }
     else if ( strncmp( gate, "fromNetwork", 11 ) == 0 )
         handleIncomingOdsrMessage( message );
     else
@@ -235,7 +243,10 @@ void OdsrLayer::handleIncomingOdsrMessage( cMessage *message )
             handleOdsrPacketForRelay( packet );
     }
     else {
-        error( "Incoming message is not a ODSR packet" );
+        //cerr << "Packet info: " << message->info() << endl;
+        //cerr << "Packet name: " << message->name() << endl;
+        //error( "Incoming message is not a ODSR packet" );
+        m_statIcmpErrors++;
     }
 }
 
@@ -409,6 +420,7 @@ void OdsrLayer::dequeuePendingPackets( const IPAddress &destination )
         data->setPointer( 1 );
 
         // encapsulate the original message
+        messages[ i ]->removeControlInfo();
         data->encapsulate( messages[ i ] );
         sendToNetwork( data, nextHop );
     }
