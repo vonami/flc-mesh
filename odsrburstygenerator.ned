@@ -20,6 +20,8 @@ simple OdsrBurstyGenerator
         enabled : bool,
         burstLength : numeric,
         messageLength : numeric,
+        burstRate : numeric,
+        messageRate : numeric,
         hostsNumber : numeric;
     gates:
         in: fromOdsr;

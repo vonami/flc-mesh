@@ -47,6 +47,8 @@ private:
     uint m_burstLength;
     uint m_burstCounter;
     uint m_messageLength;
+    double m_burstRate;
+    double m_messageRate;
 
     // statistics
     uint m_sent;

@@ -34,6 +34,8 @@ void OdsrBurstyGenerator::initialize( int stage )
         m_burstLength = par( "burstLength" );
         m_burstCounter = m_burstLength;
         m_messageLength = par( "messageLength" );
+        m_burstRate = par( "burstRate" );
+        m_messageRate = par( "messageRate" );
         m_hostsNumber = par( "hostsNumber" );
         m_sent = 0;
         m_received = 0;
@@ -74,11 +76,11 @@ void OdsrBurstyGenerator::handleMessage( cMessage *message )
         // schedule next burst
         m_burstCounter = m_burstLength;
         m_currentDestination = generateAddress();
-        scheduleAt( simTime() + exponential( 1.0 ), message );
+        scheduleAt( simTime() + exponential( m_burstRate ), message );
     }
     else {
         // schedule next sending within burst
-        scheduleAt( simTime() + exponential( 0.1 ), message );
+        scheduleAt( simTime() + exponential( m_messageRate ), message );
     }
 }
 
