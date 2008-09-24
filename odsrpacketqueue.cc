@@ -44,8 +44,12 @@ vector<cMessage*> OdsrPacketQueue::pull( const IPAddress &address )
         IPControlInfo* controlInfo = check_and_cast<IPControlInfo*>( packet->controlInfo() );
         if ( controlInfo->destAddr() == address ) {
             packets.push_back( packet );
-            m_queue.remove( packet );
         }
+    }
+
+    // remove these packets from the queue
+    for ( int i = 0; i < packets.size(); ++i ) {
+        m_queue.remove( packets[ i ] );
     }
 
     return packets;
@@ -56,6 +60,7 @@ uint OdsrPacketQueue::drop( const IPAddress &address )
     ev << "Dropping for address: " << address << endl;
 
     uint num = 0;
+    vector<cMessage*> packets; 
     for( cQueue::Iterator it( m_queue ); !it.end(); it++ ) {
         // they always have control info, verified by the ODSR layer
         // when it enqueues packets
@@ -63,8 +68,13 @@ uint OdsrPacketQueue::drop( const IPAddress &address )
         IPControlInfo* controlInfo = check_and_cast<IPControlInfo*>( packet->controlInfo() );
         if ( controlInfo->destAddr() == address ) {
             num++;
-            m_queue.remove( packet );
+            packets.push_back( packet );
         }
+    }
+
+    // remove these packets from the queue
+    for( int i = 0; i < packets.size(); ++i ) {
+        m_queue.remove( packets[ i ] );
     }
 
     return num;
