@@ -26,6 +26,7 @@
 
 #include <omnetpp.h>
 #include <RoutingTable.h>
+#include <Ieee80211MgmtBase.h>
 
 struct OdsrPendingReply
 {
@@ -73,9 +74,13 @@ private:
     OdsrRoutingTable m_odsrRoutingTable;
     std::map<IPAddress, OdsrPendingReply > m_pendingReplies;
 
+    // pointer to IEEE 802.11 Management module
+    Ieee80211MgmtBase *m_80211;
+
     // statistics
     cOutVector m_statQueueSize;
     uint m_statIcmpErrors;
+    cOutVector m_statMetric;
 };
 
 #endif // ODSRLAYER_H

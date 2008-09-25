@@ -49,6 +49,7 @@ void OdsrLayer::initialize( int stage )
         // statistics
         m_statQueueSize.setName( "QueueSize" );
         m_statIcmpErrors = 0;
+        m_statMetric.setName( "Metric value" );
     }
 
     if ( stage == 2 ) {
@@ -108,6 +109,13 @@ void OdsrLayer::initialize( int stage )
             re->metric = 1;
             m_networkRoutingTable->addRoutingEntry( re );
         }
+
+        // get pointer to the 802.11 management module
+        cModule *wlan = host->submodule( "wlan" );
+        if ( !wlan )
+            error( "Can't find wlan submodule" );
+
+        m_80211 = check_and_cast<Ieee80211MgmtBase*>( wlan->submodule( "mgmt" ) );
     }
 }
 
@@ -292,7 +300,8 @@ void OdsrLayer::handleOdsrPacketForRelay( ODSRPacket *packet )
         ev << "Broadcasting the request further" << endl;
         RoutingNode myself;
         myself.address = m_myAddress;
-        myself.metric = 0;
+        myself.metric = m_80211->queueLength();
+        m_statMetric.record( myself.metric );
         vector.push_back( myself );
         packet->setVector( vector );
         sendToNetwork( packet, LL_MANET_ROUTERS );
