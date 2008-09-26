@@ -30,7 +30,7 @@ module Scenario
                 playgroundSizeX = playgroundSizeX,
                 playgroundSizeY = playgroundSizeY;
             display: "p=44,-46;i=misc/sun";
-    host: Host[5];
+    host: Host[12];
              display: "i=device/wifilaptop_vs";
 
     connections nocheck:
