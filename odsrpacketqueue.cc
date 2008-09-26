@@ -74,7 +74,7 @@ uint OdsrPacketQueue::drop( const IPAddress &address )
 
     // remove these packets from the queue
     for( int i = 0; i < packets.size(); ++i ) {
-        m_queue.remove( packets[ i ] );
+        delete m_queue.remove( packets[ i ] );
     }
 
     return num;
