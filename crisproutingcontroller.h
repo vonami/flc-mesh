@@ -15,7 +15,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef CRSIPROUTINGCONTROLLER_H
+#ifndef CRISPROUTINGCONTROLLER_H
 #define CRISPROUTINGCONTROLLER_H
 
 #include "odsrroutingcontroller.h"
