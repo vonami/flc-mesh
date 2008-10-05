@@ -51,7 +51,7 @@ void OdsrBurstyGenerator::initialize( int stage )
         // schedule first packet of first burst
         if ( m_enabled ) {
             m_currentDestination = generateAddress();
-            scheduleAt( simTime(), new cMessage );
+            scheduleAt( simTime() + intuniform( 0, 10 ) * 2, new cMessage );
         }
     }
 }
