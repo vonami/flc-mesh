@@ -23,10 +23,13 @@
 #include <IPv4InterfaceData.h>
 #include <IPControlInfo.h>
 #include <algorithm>
+#include <math.h>
 
 using namespace std;
 
 Define_Module( OdsrLayer );
+
+const static uint weight[] = { 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55 };
 
 int OdsrLayer::numInitStages() const
 {
@@ -43,13 +46,16 @@ void OdsrLayer::initialize( int stage )
         m_autoassignAddressBase = IPAddress( par( "autoassignAddressBase" ).stringValue() );
         m_odsrPacketQueue = new OdsrPacketQueue( par( "packetQueueSize" ) );
         m_queueTimeout = par( "queueTimeout" );
-        ev << "Queue timeout: " << m_queueTimeout << endl;
+        m_routeTimeout = par( "routeTimeout" );
         m_odsrRoutingController = new CrispRoutingController();
+        m_seqnum = 0;
 
         // statistics
         m_statQueueSize.setName( "QueueSize" );
         m_statIcmpErrors = 0;
         m_statMetric.setName( "Metric value" );
+        m_statRoutesNumber.setName( "Routes number" );
+        m_statMaxHops.setName( "Max hops" );
     }
 
     if ( stage == 2 ) {
@@ -116,21 +122,44 @@ void OdsrLayer::initialize( int stage )
             error( "Can't find wlan submodule" );
 
         m_80211 = check_and_cast<Ieee80211MgmtBase*>( wlan->submodule( "mgmt" ) );
+
+        // get pointer to the IP module
+        cModule *networkLayer = host->submodule( "networkLayer" );
+        if ( !networkLayer )
+            error( "Can't find networkLayer submodule" );
+
+        m_ip = check_and_cast<IP*>( networkLayer->submodule( "ip" ) );
+
+        // logs
+        m_routesLog.open( string( "routes-" + m_myAddress.str() ).c_str() );
+        if ( !m_routesLog )
+            error( "Can't open log files for writing data" );
     }
 }
 
 void OdsrLayer::finish()
 {
     recordScalar( "ICMP errors", m_statIcmpErrors );
+    m_routesLog.close();
 }
 
 void OdsrLayer::handleMessage( cMessage* message )
 {
     // process timeouts
     if ( message->isSelfMessage() ) {
-        QueueTimeout *timeout = check_and_cast<QueueTimeout*>( message );
-        processQueueTimeout( timeout );
-        return;
+        QueueTimeout *qtimeout = dynamic_cast<QueueTimeout*>( message );
+        if ( qtimeout ) {
+            processQueueTimeout( qtimeout );
+            return;
+        }
+
+        RouteTimeout *rtimeout = dynamic_cast<RouteTimeout*>( message );
+        if ( rtimeout ) {
+            processRouteTimeout( rtimeout );
+            return;
+        }
+
+        error( "Unknown self message" );
     }
 
     const char *gate = message->arrivalGate()->name();
@@ -186,8 +215,10 @@ void OdsrLayer::handleOutgoingDataMessage( cMessage *message )
         request->setOdsrType( ODSR_REQUEST );
         request->setSource( m_myAddress );
         request->setDestination( destination );
-        request->setSeqnum( m_seqnum++ );
+        request->setSeqnum( m_seqnum );
         request->setPointer( 0 );
+        m_routesLog << simTime() << ": sent REQUEST for: " << destination << ", seqnum: " << m_seqnum << endl;
+        m_seqnum++;
         sendToNetwork( request, LL_MANET_ROUTERS );
     }
 }
@@ -300,8 +331,11 @@ void OdsrLayer::handleOdsrPacketForRelay( ODSRPacket *packet )
         ev << "Broadcasting the request further" << endl;
         RoutingNode myself;
         myself.address = m_myAddress;
-        myself.metric = m_80211->queueLength();
-        m_statMetric.record( myself.metric );
+        //cerr << "Length: " << m_80211->queueLength() << endl;
+        //cerr << "Perc: " << (double) ( m_80211->queueLength() ) / 5 << endl;
+        //cerr << "Weight: " <<  weight[ (int)roundf( double( m_80211->queueLength() ) / 5 ) ] << endl;
+        //myself.metric = weight[ (int)roundf( double( m_80211->queueLength() ) / 50 ) ];
+        myself.metric = m_ip->queueLength();
         vector.push_back( myself );
         packet->setVector( vector );
         sendToNetwork( packet, LL_MANET_ROUTERS );
@@ -347,6 +381,7 @@ void OdsrLayer::handleDiscoveredRoute( ODSRPacket *packet )
     }
     else {
         ev << "I'm not interested in this reply, dropping the packet" << endl;
+        m_routesLog << simTime() << ": Out-of-time reply: destination: " << destination << " : seqnum: " << packet->getSeqnum() << endl;
     }
 
     delete packet;
@@ -382,6 +417,8 @@ void OdsrLayer::processQueueTimeout( QueueTimeout *timeout )
 
     // choose one of the routes collected so far for this destination
     vector<RoutingVector> vectors = m_pendingReplies[ destination ].vectors;
+    m_routesLog << simTime() << ": queue timeout for: " << destination << " : # of routes: " << vectors.size() << endl;
+
     m_pendingReplies.erase( destination );
     if ( vectors.empty() ) {
         ev << "No routes to this destination have been discovered, dropping all packets" << endl;
@@ -389,12 +426,36 @@ void OdsrLayer::processQueueTimeout( QueueTimeout *timeout )
         return;
     }
 
+    m_statRoutesNumber.record( vectors.size() );
+
+    for ( uint i = 0; i < vectors.size(); ++i ) {
+        uint cutil = 0;
+        for ( uint j = 0; j < vectors[ i ].size(); ++j ) {
+            cutil += vectors[ i ][ j ].metric;
+        }
+        m_statMetric.record( cutil );
+    }
+
     const Hops hops = m_odsrRoutingController->decide( vectors );
+    m_statMaxHops.record( hops.size() );
     ev << "Hops to route through: " << hops << endl;
 
     // add a new routing entry and dequeue packets
     m_odsrRoutingTable.addHopsFor( destination, hops );
+    RouteTimeout *rtimeout = new RouteTimeout();
+    rtimeout->setDestination( destination );
+    scheduleAt( simTime() + m_routeTimeout, rtimeout );
+
     dequeuePendingPackets( destination );
+}
+
+void OdsrLayer::processRouteTimeout( RouteTimeout *timeout )
+{
+    const IPAddress destination = timeout->getDestination();
+    ev << "Route timeout for: " << destination << endl;
+    delete timeout;
+
+    m_odsrRoutingTable.removeHopsFor( destination );
 }
 
 void OdsrLayer::dequeuePendingPackets( const IPAddress &destination )
@@ -436,7 +497,7 @@ void OdsrLayer::dequeuePendingPackets( const IPAddress &destination )
 
     // erase the routing entry, next call setup will trigger
     // a new routing request
-    m_odsrRoutingTable.removeHopsFor( destination );
+    //m_odsrRoutingTable.removeHopsFor( destination );
 }
 
 void OdsrLayer::sendToNetwork( ODSRPacket *packet, const IPAddress &nextHop )
@@ -454,8 +515,8 @@ void OdsrLayer::sendToNetwork( ODSRPacket *packet, const IPAddress &nextHop )
     // this is meant to emulate processing delay
     // and avoid collisions when broadcasting requests
     // (kind of "backoff")
-    const simtime_t ST = 20E-6;
-    const double delay = ((double) intrand( 1024 )) * ST;
+    const simtime_t ST = 10E-6;
+    const double delay = ((double) intrand( 2048 )) * ST;
     ev << "PROCESSING DELAY IS:" << delay << endl;
     sendDelayed( packet, delay, "toNetwork" );
 }

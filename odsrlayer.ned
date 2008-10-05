@@ -20,7 +20,8 @@ simple OdsrLayer
         odsrInterfaces : string,
         autoassignAddressBase : string,
         packetQueueSize : numeric,
-        queueTimeout : numeric;
+        queueTimeout : numeric,
+        routeTimeout : numeric;
     gates:
         in: fromNetwork;
         out: toNetwork;

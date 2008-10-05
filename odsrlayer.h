@@ -19,14 +19,17 @@
 #define ODSRLAYER_H
 
 #include "odsrpacket_m.h"
-#include "queuetimeout_m.h"
 #include "odsrpacketqueue.h"
 #include "odsrroutingtable.h"
 #include "odsrroutingcontroller.h"
+#include "queuetimeout_m.h"
+#include "routetimeout_m.h"
 
 #include <omnetpp.h>
 #include <RoutingTable.h>
 #include <Ieee80211MgmtBase.h>
+#include <IP.h>
+#include <fstream>
 
 struct OdsrPendingReply
 {
@@ -55,6 +58,7 @@ private:
     void handleIncomingDataPacket( ODSRPacket *packet );
 
     void processQueueTimeout( QueueTimeout *timeout );
+    void processRouteTimeout( RouteTimeout *timeout );
     void dequeuePendingPackets( const IPAddress &destination );
     void sendToNetwork( ODSRPacket *packet, const IPAddress &nextHop );
     void sendReply( ODSRPacket *packet );
@@ -64,6 +68,7 @@ private:
     IPAddress m_myAddress;
     uint m_seqnum;
     double m_queueTimeout;
+    double m_routeTimeout;
 
     const char *m_odsrInterfaces;
     IPAddress m_autoassignAddressBase;
@@ -74,13 +79,19 @@ private:
     OdsrRoutingTable m_odsrRoutingTable;
     std::map<IPAddress, OdsrPendingReply > m_pendingReplies;
 
-    // pointer to IEEE 802.11 Management module
+    // pointers to IEEE 802.11 Management module and IP
     Ieee80211MgmtBase *m_80211;
+    IP *m_ip;
 
     // statistics
     cOutVector m_statQueueSize;
     uint m_statIcmpErrors;
     cOutVector m_statMetric;
+    cOutVector m_statRoutesNumber;
+    cOutVector m_statMaxHops;
+
+    // logs
+    std::ofstream m_routesLog;
 };
 
 #endif // ODSRLAYER_H
